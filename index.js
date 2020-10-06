@@ -105,11 +105,11 @@ module.exports = bundler => {
             recurse(dirpath);
         };
 
-        function copySingleFile(bundleDir, dest, filepath) {
+        function copySingleFile(bundleDir, dest, filepath, checkMtime) {
             if (fs.existsSync(dest)) {
                 const destStat = fs.statSync(dest);
                 const srcStat = fs.statSync(filepath);
-                if (destStat.mtime < srcStat.mtime) { // File was modified - let's copy it and inform about overwriting.
+                if (checkMtime || destStat.mtime < srcStat.mtime) { // File was modified - let's copy it and inform about overwriting.
                     pmLog(3, `Static file '${filepath}' already exists in '${bundleDir}'. Overwriting.`);
                     fs.copyFileSync(filepath, dest);
                 }
@@ -129,15 +129,15 @@ module.exports = bundler => {
             );
         };
 
-        const copyFile = (filepath, bundleDir, excludeGlob) => {
+        const copyFile = (filepath, bundleDir, excludeGlob, checkMtime) => {
             if (shouldBeExcluded(filepath, path.dirname(filepath), excludeGlob)) {
                 return;
             }
             const dest = path.join(bundleDir, path.basename(filepath));
-            copySingleFile(bundleDir, dest, filepath);
+            copySingleFile(bundleDir, dest, filepath, checkMtime);
         };
 
-        const copyDir = (staticDir, bundleDir, excludeGlob) => {
+        const copyDir = (staticDir, bundleDir, excludeGlob, checkMtime) => {
             const copy = (filepath, relative, filename) => {
                 if (shouldBeExcluded(filepath, staticDir, excludeGlob)) {
                     return;
@@ -149,7 +149,7 @@ module.exports = bundler => {
                         fs.mkdirSync(dest, {recursive: true});
                     }
                 } else {
-                    copySingleFile(bundleDir, dest, filepath);
+                    copySingleFile(bundleDir, dest, filepath, checkMtime);
                 }
             };
             recurseSync(staticDir, copy);
@@ -169,6 +169,7 @@ module.exports = bundler => {
                     : path.join(path.dirname(singleBundle.name), dir.staticOutDir ? dir.staticOutDir : '');
                 // merge global exclude glob with static path exclude glob
                 const excludeGlob = (config.excludeGlob || []).concat((dir.excludeGlob || []));
+                const checkMtime = dir.checkMtime || true;
 
                 if (!fs.existsSync(copyTo)) {
                     fs.mkdirSync(copyTo, {recursive: true});
@@ -180,9 +181,9 @@ module.exports = bundler => {
                     return;
                 }
                 if (fs.statSync(staticPath).isDirectory()) {
-                    copyDir(staticPath, copyTo, excludeGlob);
+                    copyDir(staticPath, copyTo, excludeGlob, checkMtime);
                 } else {
-                    copyFile(staticPath, copyTo, excludeGlob);
+                    copyFile(staticPath, copyTo, excludeGlob, checkMtime);
                 }
             }
         }
